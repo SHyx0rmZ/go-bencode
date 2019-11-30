@@ -263,6 +263,13 @@ func (d *decodeState) list(v reflect.Value) error {
 
 	switch v.Kind() {
 	case reflect.Interface:
+		if v.NumMethod() == 0 {
+			t := reflect.TypeOf([]interface{}{})
+			n := reflect.New(t)
+			v.Set(n.Elem())
+			v = n.Elem()
+			break
+		}
 		panic("interface")
 	default:
 		d.saveError(&UnmarshalTypeError{Value: "list", Type: v.Type(), Offset: int64(d.off)})
@@ -330,7 +337,10 @@ func (d *decodeState) dictionary(v reflect.Value) error {
 	t := v.Type()
 
 	if v.Kind() == reflect.Interface && v.NumMethod() == 0 {
-		//
+		t = reflect.TypeOf(map[string]interface{}{})
+		n := reflect.New(t)
+		v.Set(n)
+		v = n.Elem()
 	}
 
 	var fields []field
