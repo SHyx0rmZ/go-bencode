@@ -533,6 +533,13 @@ func (d *decodeState) integerStore(item []byte, v reflect.Value, fromQuoted bool
 			break
 		}
 		v.SetFloat(n)
+	case reflect.Bool:
+		n, err := strconv.ParseUint(s, 10, 64)
+		if err != nil || n > 1 {
+			d.saveError(&UnmarshalTypeError{Value: "number "+s, Type: v.Type(), Offset: int64(d.readIndex())})
+			break
+		}
+		v.SetBool(n == 1)
 	}
 	return nil
 }
