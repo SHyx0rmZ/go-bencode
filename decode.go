@@ -276,13 +276,11 @@ func (d *decodeState) list(v reflect.Value) error {
 	switch v.Kind() {
 	case reflect.Interface:
 		if v.NumMethod() == 0 {
-			t := reflect.TypeOf([]interface{}{})
-			n := reflect.New(t)
-			v.Set(n.Elem())
-			v = n.Elem()
-			break
+			li := d.listInterface()
+			v.Set(reflect.ValueOf(li))
+			return nil
 		}
-		panic("interface")
+		fallthrough
 	default:
 		d.saveError(&UnmarshalTypeError{Value: "list", Type: v.Type(), Offset: int64(d.off)})
 		d.skip()
@@ -342,6 +340,23 @@ func (d *decodeState) list(v reflect.Value) error {
 		v.Set(reflect.MakeSlice(v.Type(), 0, 0))
 	}
 	return nil
+}
+
+func (d *decodeState) listInterface() []interface{} {
+	var v = make([]interface{}, 0)
+	d.scanNext()
+	for {
+		var e interface{}
+		d.value(reflect.ValueOf(&e))
+		v = append(v, e)
+		if d.opcode == scanEndList {
+			break
+		}
+		if d.opcode != scanBeginInteger && d.opcode != scanBeginList && d.opcode != scanBeginDictionary && d.opcode != scanBeginString {
+			panic(phasePanicMsg)
+		}
+	}
+	return v
 }
 
 func (d *decodeState) dictionary(v reflect.Value) error {
