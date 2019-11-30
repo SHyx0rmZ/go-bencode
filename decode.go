@@ -20,6 +20,10 @@ func Unmarshal(data []byte, v interface{}) error {
 	return d.unmarshal(v)
 }
 
+type Unmarshaler interface {
+	UnmarshalBencode([]byte) error
+}
+
 type UnmarshalTypeError struct {
 	Value  string
 	Type   reflect.Type
@@ -216,7 +220,7 @@ func (d *decodeState) value(v reflect.Value) error {
 	return nil
 }
 
-func indirect(v reflect.Value, decodingNull bool) reflect.Value {
+func indirect(v reflect.Value, decodingNull bool) (Unmarshaler, reflect.Value) {
 	v0 := v
 	haveAddr := false
 
@@ -246,6 +250,9 @@ func indirect(v reflect.Value, decodingNull bool) reflect.Value {
 		}
 		if v.Type().NumMethod() > 0 && v.CanInterface() {
 			// interfaces (Unarmasher)
+			if u, ok := v.Interface().(Unmarshaler); ok {
+				return u, reflect.Value{}
+			}
 		}
 
 		if haveAddr {
@@ -255,11 +262,16 @@ func indirect(v reflect.Value, decodingNull bool) reflect.Value {
 			v = v.Elem()
 		}
 	}
-	return v
+	return nil, v
 }
 
 func (d *decodeState) list(v reflect.Value) error {
-	v = indirect(v, false)
+	u, v := indirect(v, false)
+	if u != nil {
+		start := d.readIndex()
+		d.skip()
+		return u.UnmarshalBencode(d.data[start:d.off])
+	}
 
 	switch v.Kind() {
 	case reflect.Interface:
@@ -333,7 +345,13 @@ func (d *decodeState) list(v reflect.Value) error {
 }
 
 func (d *decodeState) dictionary(v reflect.Value) error {
-	v = indirect(v, false)
+	u, v := indirect(v, false)
+	if u != nil {
+		start := d.readIndex()
+		d.skip()
+		return u.UnmarshalBencode(d.data[start:d.off])
+	}
+
 	t := v.Type()
 
 	if v.Kind() == reflect.Interface && v.NumMethod() == 0 {
@@ -485,7 +503,11 @@ func (d *decodeState) integerStore(item []byte, v reflect.Value, fromQuoted bool
 		return nil
 	}
 
-	v = indirect(v, false)
+	u, v := indirect(v, false)
+	if u != nil {
+		return u.UnmarshalBencode(append(append([]byte{'i'}, item...), 'e'))
+	}
+
 
 	c := item[0]
 	if c != '-' && (c < '0' || c > '9') {
@@ -550,7 +572,10 @@ func (d *decodeState) stringStore(item []byte, v reflect.Value, fromQuoted bool)
 		return nil
 	}
 
-	v = indirect(v, false)
+	u, v := indirect(v, false)
+	if u != nil {
+		return u.UnmarshalBencode(append([]byte(strconv.Itoa(len(item))+":"), item...))
+	}
 
 	s := string(item)
 	switch v.Kind() {
