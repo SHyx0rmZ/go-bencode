@@ -320,7 +320,7 @@ func sil(s *scanner, c byte) int {
 		s.popParseState()
 		return scanEndInteger
 	}
-	if '1' <= c && c <= '9' {
+	if '0' <= c && c <= '9' {
 		return scanContinue
 	}
 	return s.error(c, "looking for integer")
